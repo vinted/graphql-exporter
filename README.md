@@ -45,3 +45,5 @@ graphql_exporter_custom_fields_memory_total{name="server",order_contract_id="con
 # TYPE graphql_exporter_custom_fields_price gauge
 graphql_exporter_custom_fields_price{name="server",order_contract_id="contract-nr1"} 7408.8
 ```
+
+API token can be overridden with `GRAPHQLAPITOKEN` env variable.
