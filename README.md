@@ -47,3 +47,4 @@ graphql_exporter_custom_fields_price{name="server",order_contract_id="contract-n
 ```
 
 API token can be overridden with `GRAPHQLAPITOKEN` env variable.
+`CacheExpire` configuration parameter defines cache validity period. Value of `0` disables caching.
