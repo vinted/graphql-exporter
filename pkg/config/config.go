@@ -46,6 +46,11 @@ func Init(configPath string) error {
 	if err != nil {
 		return err
 	}
+	val, isSet := os.LookupEnv("GRAPHQLAPITOKEN")
+	if isSet {
+		Config.GraphqlAPIToken = val
+	}
+
 	log.Printf("Finished reading config.")
 	return nil
 }
