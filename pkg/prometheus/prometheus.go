@@ -41,7 +41,7 @@ func buildValueData(val_hash map[string]interface{}, m string) (string, string, 
 	)
 	for _, v := range strings.Split(m, ",") {
 		if _, ok := val_hash[v]; !ok {
-			error_in_hash = fmt.Errorf("Missing keys in value hash: %s, key: %s", val_hash, v)
+			error_in_hash = fmt.Errorf("Missing keys in value hash: key: %s", v)
 			break
 		}
 		if val_hash[v] == nil {
@@ -73,7 +73,7 @@ func buildLabelData(val interface{}, m config.Metric) (map[string]string, error)
 		label_hash = val.(map[string]interface{})
 		for _, l := range strings.Split(labels, ",") {
 			if _, ok := label_hash[l]; !ok {
-				error_in_hash = fmt.Errorf("Missing keys in label hash: %s, key: %s", label_hash, l)
+				error_in_hash = fmt.Errorf("Missing keys in label hash. Key: %s", l)
 				break
 			}
 			if label_hash[l] == nil {
@@ -101,11 +101,11 @@ func getMetrics() ([]Metric, error) {
 	for _, q := range config.Config.Queries {
 		result, err := graphql.GraphqlQuery(q.Query)
 		if err != nil {
-			log.Printf("Query error: %s\n", err)
+			return nil, fmt.Errorf("Query error: %s\n", err)
 		}
 		err = json.Unmarshal(result, &gql)
 		if err != nil {
-			log.Printf("Unmarshal error: %s\n", err)
+			return nil, fmt.Errorf("Unmarshal error: %s\n", err)
 		}
 		data := gql.Data.(map[string]interface{})
 		for _, m := range q.Metrics {
@@ -152,9 +152,9 @@ func buildPromDesc(name string, description string, labels map[string]string) *p
 }
 
 func (collector *graphqlCollector) Collect(ch chan<- prometheus.Metric) {
-	metrics, error := getMetrics()
-	if error != nil {
-		log.Printf("%s", error)
+	metrics, err := getMetrics()
+	if err != nil {
+		log.Printf("%s", err)
 	}
 	for _, metric := range metrics {
 		var desc *prometheus.Desc
