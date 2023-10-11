@@ -121,7 +121,7 @@ func getMetrics() ([]Metric, error) {
 				metric.Labels, error_in_hash = buildLabelData(val, m)
 				if error_in_hash != nil {
 					log.Printf("Got error: %s", error_in_hash)
-					break
+					continue
 				}
 				metric.Name = metric_prepend + strings.Replace(m.Value, ",", "_", -1)
 				metrics = append(metrics, metric)
