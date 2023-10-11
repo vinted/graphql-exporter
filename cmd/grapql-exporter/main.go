@@ -14,7 +14,7 @@ func main() {
 		httpListenAddress string
 	)
 	flag.StringVar(&configPath, "configPath", "/etc/graphql-exporter/config.json", "Path to config directory.")
-	flag.StringVar(&httpListenAddress, "HTTPListenAddress", "127.0.0.1:9353", "Address to bind to.")
+	flag.StringVar(&httpListenAddress, "HTTPListenAddress", "0.0.0.0:9353", "Address to bind to.")
 	flag.Parse()
 	err := config.Init(configPath)
 	if err != nil {

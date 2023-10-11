@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"fmt"
 	"github.com/vinted/graphql-exporter/pkg/config"
 	"io/ioutil"
 	"log"
@@ -25,10 +26,13 @@ func GraphqlQuery(query string) ([]byte, error) {
 	req.Header.Add("Authorization", config.Config.GraphqlAPIToken)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	r, err := client.Do(req)
+	if r.StatusCode != 200 {
+		return nil, fmt.Errorf(r.Status)
+	}
 	defer r.Body.Close()
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("Error rading responce body: %s\n", err)
+		return nil, err
 	}
 	return body, nil
 }
