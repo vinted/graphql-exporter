@@ -13,6 +13,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 type Graphql struct {
@@ -31,6 +33,12 @@ type Label struct {
 	Name  string
 	Value string
 }
+
+var (
+	metrics_cache []Metric
+	cache_time    = int64(0)
+	mutex         = sync.RWMutex{}
+)
 
 const metric_prepend = "graphql_exporter_"
 
@@ -152,11 +160,17 @@ func buildPromDesc(name string, description string, labels map[string]string) *p
 }
 
 func (collector *graphqlCollector) Collect(ch chan<- prometheus.Metric) {
-	metrics, err := getMetrics()
+	var err error
+	mutex.Lock()
+	if time.Now().Unix()-cache_time > config.Config.CacheExpire {
+		metrics_cache, err = getMetrics()
+		cache_time = time.Now().Unix()
+	}
+	mutex.Unlock()
 	if err != nil {
 		log.Printf("%s", err)
 	}
-	for _, metric := range metrics {
+	for _, metric := range metrics_cache {
 		var desc *prometheus.Desc
 		if value, err := strconv.ParseFloat(metric.Value, 64); err == nil {
 			desc = buildPromDesc(metric.Name, metric.Description, metric.Labels)

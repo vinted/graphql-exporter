@@ -1,6 +1,7 @@
 {
   "GraphqlURL": "http://localhost:8090/graphql/",
   "GraphqlAPIToken": "Token SECRET",
+  "CacheExpire": 0,
   "queries":[
     {
       "query": "query {device_list {name serial custom_fields}}",
