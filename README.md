@@ -33,7 +33,7 @@ Exporter is designed to build and display metrics based on GraphQL query results
 ```
 
 Query supports dynamic `datetime` field. It can be specified as template variable.
-For example when specified `{{NOW ""-1h"}}` query will generate `datetime` that existed one hour ago.
+For example when specified `{{NOW \"-1h\"}}` query will generate `datetime` that existed one hour ago.
 
 Metrics results in:
 

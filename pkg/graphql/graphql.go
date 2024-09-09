@@ -22,7 +22,6 @@ var funcMap = template.FuncMap{
 
 func GraphqlQuery(query string) ([]byte, error) {
 	params := url.Values{}
-	log.Printf(query)
 	tpl, err := template.New("query").Funcs(funcMap).Parse(query)
 	if err != nil {
 		return nil, fmt.Errorf("%s", err)
@@ -32,7 +31,6 @@ func GraphqlQuery(query string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Template error %s", err)
 	}
-	log.Printf(templateBuffer.String())
 	params.Add("query", templateBuffer.String())
 	u, err := url.ParseRequestURI(config.Config.GraphqlURL)
 	if err != nil {
