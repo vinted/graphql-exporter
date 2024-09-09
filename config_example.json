@@ -4,7 +4,7 @@
   "CacheExpire": 0,
   "queries":[
     {
-      "query": "query {device_list {name serial custom_fields}} {{NOW "-1h"}}",
+      "query": "query {device_list {name serial custom_fields}} {{NOW \"-1h\"}}",
       "metrics": [
         {
           "description": "Deprecation date",
