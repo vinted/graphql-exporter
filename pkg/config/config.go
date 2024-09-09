@@ -1,13 +1,9 @@
 package config
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
-	"text/template"
-	"time"
 )
 
 type Cfg struct {
@@ -34,13 +30,6 @@ var (
 	ConfigPath string
 )
 
-var funcMap = template.FuncMap{
-	"NOW": func(t string) (string, error) {
-		d, err := time.ParseDuration(t)
-		return time.Now().UTC().Add(d).Format(time.RFC3339), err
-	},
-}
-
 func Init(configPath string) error {
 	ConfigPath = configPath
 	content := []byte(`{}`)
@@ -51,25 +40,12 @@ func Init(configPath string) error {
 			return err
 		}
 	}
+
 	if len(content) == 0 {
 		content = []byte(`{}`)
 	}
 
-	if err != nil {
-		return fmt.Errorf("%s", err)
-	}
-	tpl, err := template.New("query").Funcs(funcMap).Parse(string(content))
-	if err != nil {
-		return fmt.Errorf("%s", err)
-	}
-
-	var templateBuffer bytes.Buffer
-	err = tpl.Execute(&templateBuffer, nil)
-	if err != nil {
-		return fmt.Errorf("Template error %s", err)
-	}
-
-	err = json.Unmarshal(templateBuffer.Bytes(), &Config)
+	err = json.Unmarshal(content, &Config)
 	if err != nil {
 		return err
 	}
