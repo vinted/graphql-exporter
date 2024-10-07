@@ -1,9 +1,9 @@
 package prometheus
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"reflect"
@@ -36,13 +36,22 @@ type Label struct {
 	Value string
 }
 
-var (
-	metrics_cache []Metric
-	cache_time    = int64(0)
-	mutex         = sync.RWMutex{}
-)
+type GraphqlCollector struct {
+	cachedMetrics []Metric
+	cachedAt      int64
+	running       bool
+	runnerMu      sync.Mutex
+	dataMu        sync.Mutex
+	graphqlURL    string
+}
 
-const metric_prepend = "graphql_exporter_"
+func newGraphqlCollector() *GraphqlCollector {
+	return &GraphqlCollector{
+		runnerMu:   sync.Mutex{},
+		dataMu:     sync.Mutex{},
+		graphqlURL: config.Config.GraphqlURL,
+	}
+}
 
 func buildValueData(val_hash map[string]interface{}, m string) (string, string, error) {
 	var (
@@ -51,7 +60,7 @@ func buildValueData(val_hash map[string]interface{}, m string) (string, string, 
 	)
 	for _, v := range strings.Split(m, ",") {
 		if _, ok := val_hash[v]; !ok {
-			error_in_hash = fmt.Errorf("Missing keys in value hash: key: %s", v)
+			error_in_hash = fmt.Errorf("missing keys in value hash: key: %s", v)
 			break
 		}
 		if val_hash[v] == nil {
@@ -105,17 +114,17 @@ func buildLabelData(val interface{}, m config.Metric) (map[string]string, error)
 	return metric.Labels, error_in_hash
 }
 
-func getMetrics() ([]Metric, error) {
+func (collector *GraphqlCollector) getMetrics(ctx context.Context) ([]Metric, error) {
 	var gql *Graphql
 	var metrics []Metric
 	for _, q := range config.Config.Queries {
-		result, err := graphql.GraphqlQuery(q.Query)
+		result, err := graphql.GraphqlQuery(ctx, q.Query)
 		if err != nil {
-			return nil, fmt.Errorf("Query error: %s\n", err)
+			return nil, fmt.Errorf("query error: %s", err)
 		}
 		err = json.Unmarshal(result, &gql)
 		if err != nil {
-			return nil, fmt.Errorf("Unmarshal error: %s\n", err)
+			return nil, fmt.Errorf("unmarshal error: %s", err)
 		}
 		data := gql.Data.(map[string]interface{})
 		for _, m := range q.Metrics {
@@ -127,13 +136,17 @@ func getMetrics() ([]Metric, error) {
 				val_hash := val.(map[string]interface{})
 				// loop through value path from config. extract result
 				metric.ValueName, metric.Value, error_in_hash = buildValueData(val_hash, m.Value)
+				if error_in_hash != nil {
+					slog.Error(fmt.Sprintf("got error: %s", error_in_hash))
+					continue
+				}
 				// loop through labels from config. Build label-value keypairs.
 				metric.Labels, error_in_hash = buildLabelData(val, m)
 				if error_in_hash != nil {
-					slog.Error(fmt.Sprintf("Got error: %s", error_in_hash))
+					slog.Error(fmt.Sprintf("got error: %s", error_in_hash))
 					continue
 				}
-				metric.Name = metric_prepend + strings.Replace(m.Value, ",", "_", -1)
+				metric.Name = config.Config.MetricsPrefix + strings.Replace(m.Value, ",", "_", -1)
 				metrics = append(metrics, metric)
 			}
 		}
@@ -141,45 +154,52 @@ func getMetrics() ([]Metric, error) {
 	return metrics, nil
 }
 
-type graphqlCollector struct {
-}
+func (collector *GraphqlCollector) Describe(ch chan<- *prometheus.Desc) {}
 
-func newGraphqlCollector() *graphqlCollector {
-	return &graphqlCollector{}
-}
-
-func (collector *graphqlCollector) Describe(ch chan<- *prometheus.Desc) {
-
-}
-
-func buildPromDesc(name string, description string, labels map[string]string) *prometheus.Desc {
-	return prometheus.NewDesc(
-		name,
-		description,
-		nil,
-		labels,
-	)
-}
-
-func (collector *graphqlCollector) Collect(ch chan<- prometheus.Metric) {
-	var err error
-	mutex.Lock()
-	if time.Now().Unix()-cache_time > config.Config.CacheExpire {
-		metrics_cache, err = getMetrics()
-		cache_time = time.Now().Unix()
+func (collector *GraphqlCollector) updateMetrics() error {
+	if time.Now().Unix()-collector.cachedAt > config.Config.CacheExpire {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+		defer cancel()
+		metrics, err := collector.getMetrics(ctx)
+		if err != nil {
+			slog.Error(fmt.Sprintf("error collecting metrics: %s", err))
+			return err
+		}
+		collector.dataMu.Lock()
+		defer collector.dataMu.Unlock()
+		collector.cachedMetrics = metrics
+		collector.cachedAt = time.Now().Unix()
 	}
-	mutex.Unlock()
-	if err != nil {
-		slog.Error(fmt.Sprintf("%s", err))
+	return nil
+}
+
+func (collector *GraphqlCollector) atomicUpdateMetrics() {
+	collector.runnerMu.Lock()
+	start := !collector.running
+	collector.running = true
+	collector.runnerMu.Unlock()
+	if start {
+		go func() {
+			collector.updateMetrics()
+			collector.runnerMu.Lock()
+			collector.running = false
+			collector.runnerMu.Unlock()
+		}()
 	}
-	for _, metric := range metrics_cache {
-		var desc *prometheus.Desc
+}
+
+func (collector *GraphqlCollector) Collect(ch chan<- prometheus.Metric) {
+	collector.atomicUpdateMetrics()
+
+	collector.dataMu.Lock()
+	defer collector.dataMu.Unlock()
+	for _, metric := range collector.cachedMetrics {
 		if value, err := strconv.ParseFloat(metric.Value, 64); err == nil {
-			desc = buildPromDesc(metric.Name, metric.Description, metric.Labels)
+			desc := prometheus.NewDesc(metric.Name, metric.Description, nil, metric.Labels)
 			ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, value)
 		} else {
 			metric.Labels["value"] = metric.Value
-			desc = buildPromDesc(metric.Name, metric.Description, metric.Labels)
+			desc := prometheus.NewDesc(metric.Name, metric.Description, nil, metric.Labels)
 			ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, 1)
 		}
 	}
@@ -195,14 +215,14 @@ func staticPage(w http.ResponseWriter, req *http.Request) {
     </html>`
 	fmt.Fprintln(w, page)
 }
+
 func Start(httpListenAddress string) {
 	graphql := newGraphqlCollector()
 	prometheus.MustRegister(graphql)
 
 	router := mux.NewRouter()
 	router.HandleFunc("/", staticPage)
-	http.Handle("/", router)
 	router.Path("/metrics").Handler(promhttp.Handler())
-	err := http.ListenAndServe(httpListenAddress, router)
-	log.Fatal(err)
+	slog.Info("Listening on " + httpListenAddress)
+	slog.Error(fmt.Sprintf("%s", http.ListenAndServe(httpListenAddress, router)))
 }

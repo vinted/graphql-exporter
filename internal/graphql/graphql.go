@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,7 +21,7 @@ var funcMap = template.FuncMap{
 	},
 }
 
-func GraphqlQuery(query string) ([]byte, error) {
+func GraphqlQuery(ctx context.Context, query string) ([]byte, error) {
 	params := url.Values{}
 	tpl, err := template.New("query").Funcs(funcMap).Parse(query)
 	if err != nil {
@@ -41,7 +42,7 @@ func GraphqlQuery(query string) ([]byte, error) {
 
 	urlStr := u.String()
 	client := &http.Client{}
-	req, err := http.NewRequest(http.MethodPost, urlStr, strings.NewReader(params.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlStr, strings.NewReader(params.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request error: %s", err)
 	}
