@@ -17,8 +17,8 @@ func main() {
 	)
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
-	flag.StringVar(&configPath, "configPath", "/etc/graphql-exporter/config.json", "Path to config directory.")
-	flag.StringVar(&httpListenAddress, "HTTPListenAddress", "0.0.0.0:9353", "Address to bind to.")
+	flag.StringVar(&configPath, "config_path", "/etc/graphql-exporter/config.json", "Path to config directory.")
+	flag.StringVar(&httpListenAddress, "http_listen_address", "0.0.0.0:9353", "Address to bind to.")
 	flag.Parse()
 	err := config.Init(configPath)
 	if err != nil {
