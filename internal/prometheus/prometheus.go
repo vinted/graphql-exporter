@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -129,7 +130,7 @@ func getMetrics() ([]Metric, error) {
 				// loop through labels from config. Build label-value keypairs.
 				metric.Labels, error_in_hash = buildLabelData(val, m)
 				if error_in_hash != nil {
-					log.Printf("Got error: %s", error_in_hash)
+					slog.Error(fmt.Sprintf("Got error: %s", error_in_hash))
 					continue
 				}
 				metric.Name = metric_prepend + strings.Replace(m.Value, ",", "_", -1)
@@ -169,7 +170,7 @@ func (collector *graphqlCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 	mutex.Unlock()
 	if err != nil {
-		log.Printf("%s", err)
+		slog.Error(fmt.Sprintf("%s", err))
 	}
 	for _, metric := range metrics_cache {
 		var desc *prometheus.Desc

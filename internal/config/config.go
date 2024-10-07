@@ -2,7 +2,7 @@ package config
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"os"
 )
 
@@ -54,6 +54,6 @@ func Init(configPath string) error {
 		Config.GraphqlAPIToken = val
 	}
 
-	log.Printf("Finished reading config.")
+	slog.Info("Finished reading config.")
 	return nil
 }

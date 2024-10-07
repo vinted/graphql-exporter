@@ -3,8 +3,7 @@ package graphql
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -27,30 +26,38 @@ func GraphqlQuery(query string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s", err)
 	}
+
 	var templateBuffer bytes.Buffer
 	err = tpl.Execute(&templateBuffer, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Template error %s", err)
+		return nil, fmt.Errorf("template error %s", err)
 	}
+
 	params.Add("query", templateBuffer.String())
 	u, err := url.ParseRequestURI(config.Config.GraphqlURL)
 	if err != nil {
-		log.Printf("Error parsing URL: %s\n", err)
+		return nil, fmt.Errorf("error parsing URL: %s", err)
 	}
+
 	urlStr := u.String()
 	client := &http.Client{}
 	req, err := http.NewRequest(http.MethodPost, urlStr, strings.NewReader(params.Encode()))
 	if err != nil {
-		log.Printf("HTTP requrest error: %s\n", err)
+		return nil, fmt.Errorf("HTTP request error: %s", err)
 	}
+
 	req.Header.Add("Authorization", config.Config.GraphqlAPIToken)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	r, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
 	if r.StatusCode != 200 {
 		return nil, fmt.Errorf(r.Status)
 	}
+
 	defer r.Body.Close()
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}
