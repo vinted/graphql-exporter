@@ -3,7 +3,6 @@ package graphql
 import (
 	"bytes"
 	"fmt"
-	"github.com/vinted/graphql-exporter/pkg/config"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/vinted/graphql-exporter/internal/config"
 )
 
 var funcMap = template.FuncMap{

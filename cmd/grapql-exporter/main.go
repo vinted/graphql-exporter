@@ -4,8 +4,8 @@ import (
 	"flag"
 	"log"
 
-	"github.com/vinted/graphql-exporter/pkg/config"
-	"github.com/vinted/graphql-exporter/pkg/prometheus"
+	"github.com/vinted/graphql-exporter/internal/config"
+	"github.com/vinted/graphql-exporter/internal/prometheus"
 )
 
 func main() {

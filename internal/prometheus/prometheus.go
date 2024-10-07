@@ -3,11 +3,6 @@ package prometheus
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/vinted/graphql-exporter/pkg/config"
-	"github.com/vinted/graphql-exporter/pkg/graphql"
 	"log"
 	"net/http"
 	"reflect"
@@ -15,6 +10,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/vinted/graphql-exporter/internal/config"
+	"github.com/vinted/graphql-exporter/internal/graphql"
 )
 
 type Graphql struct {
