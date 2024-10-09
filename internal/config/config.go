@@ -2,7 +2,8 @@ package config
 
 import (
 	"encoding/json"
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
 )
 
@@ -10,6 +11,7 @@ type Cfg struct {
 	GraphqlURL      string
 	GraphqlAPIToken string
 	CacheExpire     int64
+	MetricsPrefix   string
 	Queries         []Query
 }
 
@@ -54,6 +56,6 @@ func Init(configPath string) error {
 		Config.GraphqlAPIToken = val
 	}
 
-	log.Printf("Finished reading config.")
+	slog.Info(fmt.Sprintf("Finished reading config from %s", configPath))
 	return nil
 }
