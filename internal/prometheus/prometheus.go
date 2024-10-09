@@ -161,14 +161,18 @@ func (collector *GraphqlCollector) updateMetrics() error {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 		defer cancel()
 		metrics, err := collector.getMetrics(ctx)
+		collector.accessMu.Lock()
+		defer collector.accessMu.Unlock()
 		if err != nil {
 			slog.Error(fmt.Sprintf("error collecting metrics: %s", err))
+			if !config.Config.RetryOnError {
+				collector.cachedAt = time.Now().Unix()
+			}
 			return err
+		} else {
+			collector.cachedMetrics = metrics
+			collector.cachedAt = time.Now().Unix()
 		}
-		collector.accessMu.Lock()
-		collector.cachedMetrics = metrics
-		collector.cachedAt = time.Now().Unix()
-		collector.accessMu.Unlock()
 	}
 	return nil
 }

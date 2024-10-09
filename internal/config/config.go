@@ -11,6 +11,7 @@ type Cfg struct {
 	GraphqlURL      string
 	GraphqlAPIToken string
 	CacheExpire     int64
+	RetryOnError    bool
 	MetricsPrefix   string
 	Queries         []Query
 }
