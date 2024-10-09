@@ -114,17 +114,29 @@ func buildLabelData(val interface{}, m config.Metric) (map[string]string, error)
 	return metric.Labels, error_in_hash
 }
 
-func (collector *GraphqlCollector) getMetrics(ctx context.Context) ([]Metric, error) {
+func (collector *GraphqlCollector) getMetrics() ([]Metric, error) {
 	var gql *Graphql
 	var metrics []Metric
 	for _, q := range config.Config.Queries {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(config.Config.QueryTimeout))
 		result, err := graphql.GraphqlQuery(ctx, q.Query)
+		cancel()
 		if err != nil {
-			return nil, fmt.Errorf("query error: %s", err)
+			if config.Config.FailFast {
+				return nil, err
+			} else {
+				slog.Error(fmt.Sprintf("query error: %s", err))
+				continue
+			}
 		}
 		err = json.Unmarshal(result, &gql)
 		if err != nil {
-			return nil, fmt.Errorf("unmarshal error: %s", err)
+			if config.Config.FailFast {
+				return nil, err
+			} else {
+				slog.Error(fmt.Sprintf("unmarshal error: %s", err))
+				continue
+			}
 		}
 		data := gql.Data.(map[string]interface{})
 		for _, m := range q.Metrics {
@@ -137,13 +149,13 @@ func (collector *GraphqlCollector) getMetrics(ctx context.Context) ([]Metric, er
 				// loop through value path from config. extract result
 				metric.ValueName, metric.Value, error_in_hash = buildValueData(val_hash, m.Value)
 				if error_in_hash != nil {
-					slog.Error(fmt.Sprintf("got error: %s", error_in_hash))
+					slog.Error(fmt.Sprintf("metric value build error: %s", error_in_hash))
 					continue
 				}
 				// loop through labels from config. Build label-value keypairs.
 				metric.Labels, error_in_hash = buildLabelData(val, m)
 				if error_in_hash != nil {
-					slog.Error(fmt.Sprintf("got error: %s", error_in_hash))
+					slog.Error(fmt.Sprintf("metric labels build error: %s", error_in_hash))
 					continue
 				}
 				metric.Name = config.Config.MetricsPrefix + strings.Replace(m.Value, ",", "_", -1)
@@ -158,14 +170,12 @@ func (collector *GraphqlCollector) Describe(ch chan<- *prometheus.Desc) {}
 
 func (collector *GraphqlCollector) updateMetrics() error {
 	if time.Now().Unix()-collector.cachedAt > config.Config.CacheExpire {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-		defer cancel()
-		metrics, err := collector.getMetrics(ctx)
+		metrics, err := collector.getMetrics()
 		collector.accessMu.Lock()
 		defer collector.accessMu.Unlock()
 		if err != nil {
 			slog.Error(fmt.Sprintf("error collecting metrics: %s", err))
-			if !config.Config.RetryOnError {
+			if config.Config.ExtendCacheOnError {
 				collector.cachedAt = time.Now().Unix()
 			}
 			return err
