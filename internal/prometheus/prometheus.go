@@ -37,18 +37,18 @@ type Label struct {
 }
 
 type GraphqlCollector struct {
-	cachedMetrics []Metric
-	cachedAt      int64
-	running       bool
-	runnerMu      sync.Mutex
-	dataMu        sync.Mutex
-	graphqlURL    string
+	cachedMetrics    []Metric
+	cachedAt         int64
+	updaterIsRunning bool
+	updaterMu        sync.Mutex
+	accessMu         sync.Mutex
+	graphqlURL       string
 }
 
 func newGraphqlCollector() *GraphqlCollector {
 	return &GraphqlCollector{
-		runnerMu:   sync.Mutex{},
-		dataMu:     sync.Mutex{},
+		updaterMu:  sync.Mutex{},
+		accessMu:   sync.Mutex{},
 		graphqlURL: config.Config.GraphqlURL,
 	}
 }
@@ -165,34 +165,34 @@ func (collector *GraphqlCollector) updateMetrics() error {
 			slog.Error(fmt.Sprintf("error collecting metrics: %s", err))
 			return err
 		}
-		collector.dataMu.Lock()
-		defer collector.dataMu.Unlock()
+		collector.accessMu.Lock()
 		collector.cachedMetrics = metrics
 		collector.cachedAt = time.Now().Unix()
+		collector.accessMu.Unlock()
 	}
 	return nil
 }
 
-func (collector *GraphqlCollector) atomicUpdateMetrics() {
-	collector.runnerMu.Lock()
-	start := !collector.running
-	collector.running = true
-	collector.runnerMu.Unlock()
+func (collector *GraphqlCollector) atomicUpdate() {
+	collector.updaterMu.Lock()
+	start := !collector.updaterIsRunning
+	collector.updaterIsRunning = true
+	collector.updaterMu.Unlock()
 	if start {
 		go func() {
 			collector.updateMetrics()
-			collector.runnerMu.Lock()
-			collector.running = false
-			collector.runnerMu.Unlock()
+			collector.updaterMu.Lock()
+			collector.updaterIsRunning = false
+			collector.updaterMu.Unlock()
 		}()
 	}
 }
 
 func (collector *GraphqlCollector) Collect(ch chan<- prometheus.Metric) {
-	collector.atomicUpdateMetrics()
+	collector.atomicUpdate()
 
-	collector.dataMu.Lock()
-	defer collector.dataMu.Unlock()
+	collector.accessMu.Lock()
+	defer collector.accessMu.Unlock()
 	for _, metric := range collector.cachedMetrics {
 		if value, err := strconv.ParseFloat(metric.Value, 64); err == nil {
 			desc := prometheus.NewDesc(metric.Name, metric.Description, nil, metric.Labels)
