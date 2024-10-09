@@ -158,7 +158,7 @@ func (collector *GraphqlCollector) Describe(ch chan<- *prometheus.Desc) {}
 
 func (collector *GraphqlCollector) updateMetrics() error {
 	if time.Now().Unix()-collector.cachedAt > config.Config.CacheExpire {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(config.Config.Timeout))
 		defer cancel()
 		metrics, err := collector.getMetrics(ctx)
 		collector.accessMu.Lock()

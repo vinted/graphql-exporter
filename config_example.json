@@ -2,6 +2,7 @@
   "graphqlURL": "http://localhost:8090/graphql/",
   "graphqlAPIToken": "Token SECRET",
   "cacheExpire": 0,
+  "timeout": 60,
   "retryOnError": false,
   "metricsPrefix": "graphql_exporter_",
   "queries":[
