@@ -1,10 +1,10 @@
 {
+  "metricsPrefix": "graphql_exporter_",
   "graphqlURL": "http://localhost:8090/graphql/",
   "graphqlAPIToken": "Token SECRET",
   "cacheExpire": 0,
-  "timeout": 60,
+  "queryTimeout": 60,
   "retryOnError": false,
-  "metricsPrefix": "graphql_exporter_",
   "queries":[
     {
       "query": "query {device_list {name serial custom_fields}} {{NOW \"-1h\"}}",

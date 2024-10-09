@@ -11,7 +11,7 @@ type Cfg struct {
 	GraphqlURL      string
 	GraphqlAPIToken string
 	CacheExpire     int64
-	Timeout         int64
+	QueryTimeout    int64
 	RetryOnError    bool
 	MetricsPrefix   string
 	Queries         []Query
@@ -58,8 +58,8 @@ func Init(configPath string) error {
 		Config.GraphqlAPIToken = val
 	}
 
-	if Config.Timeout == 0 {
-		Config.Timeout = 60
+	if Config.QueryTimeout == 0 {
+		Config.QueryTimeout = 60
 	}
 
 	slog.Info(fmt.Sprintf("Finished reading config from %s", configPath))
