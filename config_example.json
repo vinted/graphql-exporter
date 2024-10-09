@@ -4,7 +4,8 @@
   "graphqlAPIToken": "Token SECRET",
   "cacheExpire": 0,
   "queryTimeout": 60,
-  "retryOnError": false,
+  "failFast": false,
+  "extendCacheOnError": false,
   "queries":[
     {
       "query": "query {device_list {name serial custom_fields}} {{NOW \"-1h\"}}",

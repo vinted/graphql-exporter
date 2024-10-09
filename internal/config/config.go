@@ -8,13 +8,14 @@ import (
 )
 
 type Cfg struct {
-	GraphqlURL      string
-	GraphqlAPIToken string
-	CacheExpire     int64
-	QueryTimeout    int64
-	RetryOnError    bool
-	MetricsPrefix   string
-	Queries         []Query
+	MetricsPrefix      string
+	GraphqlURL         string
+	GraphqlAPIToken    string
+	CacheExpire        int64
+	QueryTimeout       int64
+	FailFast           bool
+	ExtendCacheOnError bool
+	Queries            []Query
 }
 
 type Query struct {

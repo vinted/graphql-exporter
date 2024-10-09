@@ -122,13 +122,21 @@ func (collector *GraphqlCollector) getMetrics() ([]Metric, error) {
 		result, err := graphql.GraphqlQuery(ctx, q.Query)
 		cancel()
 		if err != nil {
-			slog.Error(fmt.Sprintf("query error: %s", err))
-			continue
+			if config.Config.FailFast {
+				return nil, err
+			} else {
+				slog.Error(fmt.Sprintf("query error: %s", err))
+				continue
+			}
 		}
 		err = json.Unmarshal(result, &gql)
 		if err != nil {
-			slog.Error(fmt.Sprintf("unmarshal error: %s", err))
-			continue
+			if config.Config.FailFast {
+				return nil, err
+			} else {
+				slog.Error(fmt.Sprintf("unmarshal error: %s", err))
+				continue
+			}
 		}
 		data := gql.Data.(map[string]interface{})
 		for _, m := range q.Metrics {
@@ -167,7 +175,7 @@ func (collector *GraphqlCollector) updateMetrics() error {
 		defer collector.accessMu.Unlock()
 		if err != nil {
 			slog.Error(fmt.Sprintf("error collecting metrics: %s", err))
-			if !config.Config.RetryOnError {
+			if config.Config.ExtendCacheOnError {
 				collector.cachedAt = time.Now().Unix()
 			}
 			return err
