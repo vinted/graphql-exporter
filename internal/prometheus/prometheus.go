@@ -53,15 +53,14 @@ func newGraphqlCollector() *GraphqlCollector {
 	}
 }
 
-func buildValueData(val_hash map[string]interface{}, m string) (string, string, error) {
-	var (
-		metric        Metric
-		error_in_hash error
-	)
+func buildValueData(val_hash map[string]interface{}, m string) (string, error) {
+	var value string
 	for _, v := range strings.Split(m, ",") {
+		if _, err := strconv.Atoi(v); err == nil {
+			return v, nil
+		}
 		if _, ok := val_hash[v]; !ok {
-			error_in_hash = fmt.Errorf("missing keys in value hash: key: %s", v)
-			break
+			return value, fmt.Errorf("missing keys in value hash: key: %s", v)
 		}
 		if val_hash[v] == nil {
 			val_hash[v] = ""
@@ -70,29 +69,26 @@ func buildValueData(val_hash map[string]interface{}, m string) (string, string, 
 		case reflect.Map:
 			val_hash = val_hash[v].(map[string]interface{})
 		case reflect.String:
-			metric.Value = val_hash[v].(string)
-			metric.ValueName = v
+			value = val_hash[v].(string)
 		case reflect.Float64:
-			metric.Value = fmt.Sprintf("%v", val_hash[v].(float64))
-			metric.ValueName = v
+			value = fmt.Sprintf("%v", val_hash[v].(float64))
 		}
 	}
-	return metric.ValueName, metric.Value, error_in_hash
+	return value, nil
 }
 
 func buildLabelData(val interface{}, m config.Metric) (map[string]string, error) {
 	var (
-		metric        Metric
-		label         Label
-		error_in_hash error
-		label_hash    map[string]interface{}
+		label      Label
+		err        error
+		label_hash map[string]interface{}
 	)
-	metric.Labels = make(map[string]string)
+	metricLabels := make(map[string]string)
 	for _, labels := range m.Labels {
 		label_hash = val.(map[string]interface{})
 		for _, l := range strings.Split(labels, ",") {
 			if _, ok := label_hash[l]; !ok {
-				error_in_hash = fmt.Errorf("Missing keys in label hash. Key: %s", l)
+				err = fmt.Errorf("missing keys in label hash. Key: %s", l)
 				break
 			}
 			if label_hash[l] == nil {
@@ -109,9 +105,9 @@ func buildLabelData(val interface{}, m config.Metric) (map[string]string, error)
 				label.Name = l
 			}
 		}
-		metric.Labels[label.Name] = label.Value
+		metricLabels[label.Name] = label.Value
 	}
-	return metric.Labels, error_in_hash
+	return metricLabels, err
 }
 
 func (collector *GraphqlCollector) getMetrics() ([]Metric, error) {
@@ -141,24 +137,33 @@ func (collector *GraphqlCollector) getMetrics() ([]Metric, error) {
 		data := gql.Data.(map[string]interface{})
 		for _, m := range q.Metrics {
 			for _, val := range data[m.Placeholder].([]interface{}) {
-				var metric Metric
-				metric.Labels = make(map[string]string)
-				metric.Description = m.Description
-				var error_in_hash error
+				metric := Metric{
+					Labels:      make(map[string]string),
+					Description: m.Description,
+				}
+
+				var err error
 				val_hash := val.(map[string]interface{})
-				// loop through value path from config. extract result
-				metric.ValueName, metric.Value, error_in_hash = buildValueData(val_hash, m.Value)
-				if error_in_hash != nil {
-					slog.Error(fmt.Sprintf("metric value build error: %s", error_in_hash))
+				// loop through value path from configuration
+				// and extract corresponding value from the retrieved data
+				metric.Value, err = buildValueData(val_hash, m.Value)
+				if err != nil {
+					slog.Error(fmt.Sprintf("metric value build error: %s", err))
 					continue
 				}
-				// loop through labels from config. Build label-value keypairs.
-				metric.Labels, error_in_hash = buildLabelData(val, m)
-				if error_in_hash != nil {
-					slog.Error(fmt.Sprintf("metric labels build error: %s", error_in_hash))
+				// loop through labels from configuration
+				// and build label-value keypairs
+				metric.Labels, err = buildLabelData(val, m)
+				if err != nil {
+					slog.Error(fmt.Sprintf("metric labels build error: %s", err))
 					continue
 				}
-				metric.Name = config.Config.MetricsPrefix + strings.Replace(m.Value, ",", "_", -1)
+
+				valueName := m.Name
+				if valueName == "" {
+					valueName = strings.Replace(m.Value, ",", "_", -1)
+				}
+				metric.Name = config.Config.MetricsPrefix + valueName
 				metrics = append(metrics, metric)
 			}
 		}
