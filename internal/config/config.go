@@ -28,6 +28,7 @@ type Metric struct {
 	Placeholder string
 	Labels      []string
 	Value       string
+	Name        string
 }
 
 var (
