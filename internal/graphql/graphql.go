@@ -11,6 +11,8 @@ import (
 	"text/template"
 	"time"
 
+	"log/slog"
+
 	"github.com/vinted/graphql-exporter/internal/config"
 )
 
@@ -21,7 +23,7 @@ var funcMap = template.FuncMap{
 	},
 }
 
-func GraphqlQuery(ctx context.Context, query string) ([]byte, error) {
+func GraphqlQuery(ctx context.Context, query string, previousTimestapm time.Time) ([]byte, error) {
 	params := url.Values{}
 	tpl, err := template.New("query").Funcs(funcMap).Parse(query)
 	if err != nil {
@@ -29,12 +31,16 @@ func GraphqlQuery(ctx context.Context, query string) ([]byte, error) {
 	}
 
 	var templateBuffer bytes.Buffer
-	err = tpl.Execute(&templateBuffer, nil)
+	err = tpl.Execute(&templateBuffer, struct{ PreviousRun, Now string }{
+		PreviousRun: previousTimestapm.Format(time.RFC3339),
+		Now:         time.Now().Format(time.RFC3339),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("template error %s", err)
 	}
-
-	params.Add("query", templateBuffer.String())
+	q := templateBuffer.String()
+	params.Add("query", q)
+	slog.Debug(fmt.Sprintf("run query: %s", q))
 	u, err := url.ParseRequestURI(config.Config.GraphqlURL)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing URL: %s", err)
@@ -46,8 +52,11 @@ func GraphqlQuery(ctx context.Context, query string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request error: %s", err)
 	}
-
-	req.Header.Add(config.Config.GraphqlCustomHeader, config.Config.GraphqlAPIToken)
+	header := config.Config.GraphqlCustomHeader
+	if header == "" {
+		header = "Authorization"
+	}
+	req.Header.Add(header, config.Config.GraphqlAPIToken)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	r, err := client.Do(req)
 	if err != nil {

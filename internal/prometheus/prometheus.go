@@ -25,8 +25,9 @@ type Graphql struct {
 }
 
 type QuerySet struct {
-	Query   string
-	Metrics []*Metric
+	Query       string
+	Metrics     []*Metric
+	PreviousRun time.Time
 }
 
 type Metric struct {
@@ -104,8 +105,9 @@ func newGraphqlCollector() *GraphqlCollector {
 			})
 		}
 		querySet := &QuerySet{
-			Query:   q.Query,
-			Metrics: metrics,
+			Query:       q.Query,
+			Metrics:     metrics,
+			PreviousRun: time.Now(),
 		}
 		cachedQuerySet = append(cachedQuerySet, querySet)
 	}
@@ -124,7 +126,7 @@ func (collector *GraphqlCollector) getMetrics() error {
 	for _, q := range collector.cachedQuerySet {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(config.Config.QueryTimeout))
 		queryCtx := context.WithValue(ctx, "query", q.Query)
-		result, err := graphql.GraphqlQuery(ctx, q.Query)
+		result, err := graphql.GraphqlQuery(ctx, q.Query, q.PreviousRun)
 		cancel()
 		if err != nil {
 			if config.Config.FailFast {
@@ -229,7 +231,6 @@ func (collector *GraphqlCollector) Collect(ch chan<- prometheus.Metric) {
 				c.Collect(ch)
 			case *prometheus.HistogramVec:
 				c.Collect(ch)
-				c.Reset()
 			default:
 				slog.Error(fmt.Sprintf("bad metric type to collect: %+v", c))
 			}
