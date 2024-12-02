@@ -13,6 +13,7 @@ type Cfg struct {
 	GraphqlURL          string  `yaml:"graphqlURL"`
 	GraphqlAPIToken     string  `yaml:"graphqlAPIToken"`
 	GraphqlCustomHeader string  `default:"Authorization" yaml:"customAPIHeader"`
+	LabelPathSeparator  string  `default:"," yaml:"labelPathSeparator"`
 	CacheExpire         int64   `yaml:"cacheExpire"`
 	QueryTimeout        int64   `yaml:"queryTimeout"`
 	FailFast            bool    `yaml:"failFast"`

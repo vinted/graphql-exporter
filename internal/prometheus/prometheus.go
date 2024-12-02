@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,25 +18,29 @@ import (
 	"github.com/vinted/graphql-exporter/internal/graphql"
 )
 
+var latencyHistogramBuckets = []float64{.1, .25, .5, 1, 2.5, 5, 10, 15, 20, 30, 40, 50, 60, 90, 150, 210, 270, 330, 390, 450, 500, 600, 1200, 1800, 2700, 3600}
+
 type Graphql struct {
-	Data interface{}
+	Data map[string]interface{}
+}
+
+type QuerySet struct {
+	Query   string
+	Metrics []*Metric
 }
 
 type Metric struct {
-	Name        string
-	Description string
-	Labels      map[string]string
-	ValueName   string
-	Value       string
+	Collector prometheus.Collector
+	Config    config.Metric
+	Extractor Extractor
 }
-
 type Label struct {
 	Name  string
 	Value string
 }
 
 type GraphqlCollector struct {
-	cachedMetrics    []Metric
+	cachedQuerySet   []*QuerySet
 	cachedAt         int64
 	updaterIsRunning bool
 	updaterMu        sync.Mutex
@@ -45,139 +48,148 @@ type GraphqlCollector struct {
 	graphqlURL       string
 }
 
+// Build Prometheux MetricVec with label dimensions.
 func newGraphqlCollector() *GraphqlCollector {
-	return &GraphqlCollector{
-		updaterMu:  sync.Mutex{},
-		accessMu:   sync.Mutex{},
-		graphqlURL: config.Config.GraphqlURL,
-	}
-}
+	var cachedQuerySet []*QuerySet
 
-func buildValueData(val_hash map[string]interface{}, m string) (string, error) {
-	var value string
-	for _, v := range strings.Split(m, ",") {
-		if _, err := strconv.Atoi(v); err == nil {
-			return v, nil
-		}
-		if _, ok := val_hash[v]; !ok {
-			return value, fmt.Errorf("missing keys in value hash: key: %s", v)
-		}
-		if val_hash[v] == nil {
-			val_hash[v] = ""
-		}
-		switch reflect.TypeOf(val_hash[v]).Kind() {
-		case reflect.Map:
-			val_hash = val_hash[v].(map[string]interface{})
-		case reflect.String:
-			value = val_hash[v].(string)
-		case reflect.Float64:
-			value = fmt.Sprintf("%v", val_hash[v].(float64))
-		}
-	}
-	return value, nil
-}
-
-func buildLabelData(val interface{}, m config.Metric) (map[string]string, error) {
-	var (
-		label      Label
-		err        error
-		label_hash map[string]interface{}
-	)
-	metricLabels := make(map[string]string)
-	for _, labels := range m.Labels {
-		label_hash = val.(map[string]interface{})
-		for _, l := range strings.Split(labels, ",") {
-			if _, ok := label_hash[l]; !ok {
-				err = fmt.Errorf("missing keys in label hash. Key: %s", l)
-				break
-			}
-			if label_hash[l] == nil {
-				label_hash[l] = ""
-			}
-			switch reflect.TypeOf(label_hash[l]).Kind() {
-			case reflect.Map:
-				label_hash = label_hash[l].(map[string]interface{})
-			case reflect.String:
-				label.Value = label_hash[l].(string)
-				label.Name = l
-			case reflect.Float64:
-				label.Value = fmt.Sprintf("%v", label_hash[l].(float64))
-				label.Name = l
-			}
-		}
-		metricLabels[label.Name] = label.Value
-	}
-	return metricLabels, err
-}
-
-func (collector *GraphqlCollector) getMetrics() ([]Metric, error) {
-	var gql *Graphql
-	var metrics []Metric
 	for _, q := range config.Config.Queries {
+		var metrics []*Metric
+		for _, m := range q.Metrics {
+			var collector prometheus.Collector
+			var name string
+			var labels []string
+
+			extractor, err := NewExtractor(config.Config.LabelPathSeparator, m.Value, m.Labels)
+			if err != nil {
+				slog.Error(fmt.Sprintf("labels definition with error on %s: %s", m.Name, err))
+			}
+			if m.Name == "" {
+				name = config.Config.MetricsPrefix + strings.Replace(m.Value, ",", "_", -1)
+
+			} else {
+				name = m.Name
+			}
+
+			for _, label := range extractor.GetSortedPaths() {
+				label = strings.Replace(label, ".*.", "_", -1)
+				label = strings.Replace(label, ".", "_", -1)
+				labels = append(labels, label)
+			}
+			switch {
+			case m.MetricType == "histogram":
+				collector = prometheus.NewHistogramVec(
+					prometheus.HistogramOpts{
+						Namespace: config.Config.MetricsPrefix,
+						Subsystem: q.Subsystem,
+						Name:      name,
+						Help:      m.Description,
+						Buckets:   latencyHistogramBuckets,
+					},
+					labels)
+			default:
+				collector = prometheus.NewGaugeVec(
+					prometheus.GaugeOpts{
+						Namespace: config.Config.MetricsPrefix,
+						Subsystem: q.Subsystem,
+						Name:      name,
+						Help:      m.Description,
+					},
+					labels,
+				)
+			}
+			metrics = append(metrics, &Metric{
+				Collector: collector,
+				Config:    m,
+				Extractor: extractor,
+			})
+		}
+		querySet := &QuerySet{
+			Query:   q.Query,
+			Metrics: metrics,
+		}
+		cachedQuerySet = append(cachedQuerySet, querySet)
+	}
+
+	return &GraphqlCollector{
+		cachedQuerySet: cachedQuerySet,
+		updaterMu:      sync.Mutex{},
+		accessMu:       sync.Mutex{},
+		graphqlURL:     config.Config.GraphqlURL,
+	}
+}
+
+func (collector *GraphqlCollector) getMetrics() error {
+	var gql *Graphql
+
+	for _, q := range collector.cachedQuerySet {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(config.Config.QueryTimeout))
+		queryCtx := context.WithValue(ctx, "query", q.Query)
 		result, err := graphql.GraphqlQuery(ctx, q.Query)
 		cancel()
 		if err != nil {
 			if config.Config.FailFast {
-				return nil, err
+				return err
 			} else {
 				slog.Error(fmt.Sprintf("query error: %s", err))
 				continue
 			}
 		}
+
 		err = json.Unmarshal(result, &gql)
 		if err != nil {
 			if config.Config.FailFast {
-				return nil, err
+				return err
 			} else {
 				slog.Error(fmt.Sprintf("unmarshal error: %s", err))
 				continue
 			}
 		}
-		data := gql.Data.(map[string]interface{})
+		data := gql.Data
+		if data == nil {
+			continue
+		}
 		for _, m := range q.Metrics {
-			for _, val := range data[m.Placeholder].([]interface{}) {
-				metric := Metric{
-					Labels:      make(map[string]string),
-					Description: m.Description,
+			metricCtx := context.WithValue(queryCtx, "metric", m.Config.Name)
+			callbackFunc := func(value string, labels []string) {
+				if value == "" {
+					return
 				}
-
-				var err error
-				val_hash := val.(map[string]interface{})
-				// loop through value path from configuration
-				// and extract corresponding value from the retrieved data
-				metric.Value, err = buildValueData(val_hash, m.Value)
-				if err != nil {
-					slog.Error(fmt.Sprintf("metric value build error: %s", err))
-					continue
+				switch v := m.Collector.(type) {
+				case *prometheus.HistogramVec:
+					f, err := strconv.ParseFloat(value, 64)
+					if err != nil {
+						slog.ErrorContext(metricCtx, "fail to convert metric to float", slog.String("value", value))
+					}
+					v.WithLabelValues(labels...).Observe(f)
+				case *prometheus.GaugeVec:
+					f, err := strconv.ParseFloat(value, 64)
+					if err != nil {
+						slog.ErrorContext(metricCtx, "fail to convert metric to float", slog.String("value", value))
+					}
+					v.WithLabelValues(labels...).Set(f)
+				case *prometheus.CounterVec:
+					f, err := strconv.ParseFloat(value, 64)
+					if err != nil || f < 0 {
+						f = 1
+					}
+					v.WithLabelValues(labels...).Add(f)
+				default:
+					slog.Error(fmt.Sprintf("unsuported collector type %v", v))
 				}
-				// loop through labels from configuration
-				// and build label-value keypairs
-				metric.Labels, err = buildLabelData(val, m)
-				if err != nil {
-					slog.Error(fmt.Sprintf("metric labels build error: %s", err))
-					continue
-				}
-
-				valueName := m.Name
-				if valueName == "" {
-					valueName = strings.Replace(m.Value, ",", "_", -1)
-				}
-				metric.Name = config.Config.MetricsPrefix + valueName
-				metrics = append(metrics, metric)
 			}
+			m.Extractor.ExtractMetrics(data, callbackFunc)
 		}
 	}
-	return metrics, nil
+	return nil
 }
 
 func (collector *GraphqlCollector) Describe(ch chan<- *prometheus.Desc) {}
 
 func (collector *GraphqlCollector) updateMetrics() error {
 	if time.Now().Unix()-collector.cachedAt > config.Config.CacheExpire {
-		metrics, err := collector.getMetrics()
 		collector.accessMu.Lock()
 		defer collector.accessMu.Unlock()
+		err := collector.getMetrics()
 		if err != nil {
 			slog.Error(fmt.Sprintf("error collecting metrics: %s", err))
 			if config.Config.ExtendCacheOnError {
@@ -185,14 +197,13 @@ func (collector *GraphqlCollector) updateMetrics() error {
 			}
 			return err
 		} else {
-			collector.cachedMetrics = metrics
 			collector.cachedAt = time.Now().Unix()
 		}
 	}
 	return nil
 }
 
-func (collector *GraphqlCollector) atomicUpdate() {
+func (collector *GraphqlCollector) atomicUpdate(ch chan<- prometheus.Metric) {
 	collector.updaterMu.Lock()
 	start := !collector.updaterIsRunning
 	collector.updaterIsRunning = true
@@ -208,18 +219,21 @@ func (collector *GraphqlCollector) atomicUpdate() {
 }
 
 func (collector *GraphqlCollector) Collect(ch chan<- prometheus.Metric) {
-	collector.atomicUpdate()
-
+	collector.atomicUpdate(ch)
 	collector.accessMu.Lock()
 	defer collector.accessMu.Unlock()
-	for _, metric := range collector.cachedMetrics {
-		if value, err := strconv.ParseFloat(metric.Value, 64); err == nil {
-			desc := prometheus.NewDesc(metric.Name, metric.Description, nil, metric.Labels)
-			ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, value)
-		} else {
-			metric.Labels["value"] = metric.Value
-			desc := prometheus.NewDesc(metric.Name, metric.Description, nil, metric.Labels)
-			ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, 1)
+	for _, querySet := range collector.cachedQuerySet {
+		for _, metric := range querySet.Metrics {
+			switch c := metric.Collector.(type) {
+			case *prometheus.CounterVec, *prometheus.GaugeVec:
+				c.Collect(ch)
+			case *prometheus.HistogramVec:
+				c.Collect(ch)
+				c.Reset()
+			default:
+				slog.Error(fmt.Sprintf("bad metric type to collect: %+v", c))
+			}
+
 		}
 	}
 }
