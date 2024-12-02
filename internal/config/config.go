@@ -1,34 +1,37 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Cfg struct {
-	MetricsPrefix      string
-	GraphqlURL         string
-	GraphqlAPIToken    string
-	CacheExpire        int64
-	QueryTimeout       int64
-	FailFast           bool
-	ExtendCacheOnError bool
-	Queries            []Query
+	MetricsPrefix      string  `yaml:"metricsPrefix"`
+	GraphqlURL         string  `yaml:"graphqlURL"`
+	GraphqlAPIToken    string  `yaml:"graphqlAPIToken"`
+	CacheExpire        int64   `yaml:"cacheExpire"`
+	QueryTimeout       int64   `yaml:"queryTimeout"`
+	FailFast           bool    `yaml:"failFast"`
+	ExtendCacheOnError bool    `yaml:"extendCacheOnError"`
+	Queries            []Query `yaml:"queries"`
 }
 
 type Query struct {
-	Query   string
-	Metrics []Metric
+	Query     string `yaml:"query"`
+	Subsystem string `yaml:"subsystem"`
+	Metrics   []Metric
 }
 
 type Metric struct {
-	Description string
-	Placeholder string
-	Labels      []string
-	Value       string
-	Name        string
+	Description string   `yaml:"description"`
+	MetricType  string   `yaml:"metricType"`
+	Placeholder string   `yaml:"placeholder"`
+	Labels      []string `yaml:"labels"`
+	Value       string   `yaml:"value"`
+	Name        string   `yaml:"name"`
 }
 
 var (
@@ -51,7 +54,7 @@ func Init(configPath string) error {
 		content = []byte(`{}`)
 	}
 
-	err = json.Unmarshal(content, &Config)
+	err = yaml.Unmarshal(content, &Config)
 	if err != nil {
 		return err
 	}
