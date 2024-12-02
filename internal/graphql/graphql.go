@@ -47,7 +47,7 @@ func GraphqlQuery(ctx context.Context, query string) ([]byte, error) {
 		return nil, fmt.Errorf("HTTP request error: %s", err)
 	}
 
-	req.Header.Add("Authorization", config.Config.GraphqlAPIToken)
+	req.Header.Add(config.Config.GraphqlCustomHeader, config.Config.GraphqlAPIToken)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	r, err := client.Do(req)
 	if err != nil {

@@ -9,14 +9,15 @@ import (
 )
 
 type Cfg struct {
-	MetricsPrefix      string  `yaml:"metricsPrefix"`
-	GraphqlURL         string  `yaml:"graphqlURL"`
-	GraphqlAPIToken    string  `yaml:"graphqlAPIToken"`
-	CacheExpire        int64   `yaml:"cacheExpire"`
-	QueryTimeout       int64   `yaml:"queryTimeout"`
-	FailFast           bool    `yaml:"failFast"`
-	ExtendCacheOnError bool    `yaml:"extendCacheOnError"`
-	Queries            []Query `yaml:"queries"`
+	MetricsPrefix       string  `yaml:"metricsPrefix"`
+	GraphqlURL          string  `yaml:"graphqlURL"`
+	GraphqlAPIToken     string  `yaml:"graphqlAPIToken"`
+	GraphqlCustomHeader string  `default:"Authorization" yaml:"customAPIHeader"`
+	CacheExpire         int64   `yaml:"cacheExpire"`
+	QueryTimeout        int64   `yaml:"queryTimeout"`
+	FailFast            bool    `yaml:"failFast"`
+	ExtendCacheOnError  bool    `yaml:"extendCacheOnError"`
+	Queries             []Query `yaml:"queries"`
 }
 
 type Query struct {
