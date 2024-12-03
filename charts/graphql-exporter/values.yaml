@@ -127,6 +127,11 @@ tolerations: []
 
 affinity: {}
 
+metrics:
+  serviceMonitor:
+    enabled: true
+    endpointConfig:
+      interval: 1m
 config: 
   apiSecret: {}
     # name: todo
