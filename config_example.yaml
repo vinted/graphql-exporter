@@ -1,0 +1,30 @@
+---
+metricsPrefix: graphql_exporter_
+graphqlURL: http://localhost:8090/graphql/
+graphqlAPIToken: Token SECRET
+cacheExpire: 0
+queryTimeout: 60
+failFast: false
+extendCacheOnError: false
+queries:
+- query: query {device_list {name serial custom_fields}} {{NOW "-1h"}}
+  metrics:
+  - description: Deprecation date
+    placeholder: device_list
+    labels:
+    - name
+    - custom_fields,order_contract_id
+    - serial
+    value: custom_fields,depreciation_date
+  - description: Device price
+    placeholder: device_list
+    labels:
+    - name
+    - custom_fields,order_contract_id
+    value: custom_fields,price
+  - description: Device memory total
+    placeholder: device_list
+    labels:
+    - name
+    - custom_fields,order_contract_id
+    value: custom_fields,memory_total

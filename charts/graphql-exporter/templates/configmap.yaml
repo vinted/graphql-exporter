@@ -1,0 +1,11 @@
+---
+### config map that hot reloads WEB pods
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "graphql-exporter.fullname" . }}
+  labels:
+    {{- include "graphql-exporter.labels" . | nindent 4 }}
+data:
+  config.yaml: | 
+    {{ .Values.config.queries | nindent 4 }}

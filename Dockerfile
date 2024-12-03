@@ -18,8 +18,8 @@ RUN go build -o /go/bin/graphql-exporter ./cmd/graphql-exporter
 FROM scratch
 # Copy our static executable.
 COPY --from=builder /go/bin/graphql-exporter /go/bin/graphql-exporter
-COPY gitlab.yaml /gitlab.yaml
+COPY config_example.yaml /config.yaml
 EXPOSE 9353
 # Run the hello binary.
 ENTRYPOINT ["/go/bin/graphql-exporter"]
-CMD ["-config_path", "/gitlab.yaml"]
+CMD ["-config_path", "/config.yaml"]
