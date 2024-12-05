@@ -6,67 +6,68 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/vinted/graphql-exporter/internal/config"
 )
 
 func TestValidateLabelKeysPath(t *testing.T) {
 	tests := []struct {
 		description string
 		valueKey    string
-		labelKeys   []string
+		labelKeys   []config.Label
 		expectErr   bool
 	}{
 		{
 			description: "Valid case: a valueKey path can have one to n `*` which is not in the labelKeys",
 			valueKey:    "l1.l2a.*.label2",
-			labelKeys:   []string{"l1.l2b.label1"},
+			labelKeys:   []config.Label{{Alias: "label1", Path: "l1.l2b.label1"}},
 			expectErr:   false,
 		},
 		{
 			description: "Case fail: a labelKey cannot have an * that is not in the valueKeys",
 			valueKey:    "l1.l2a.label2",
-			labelKeys:   []string{"l1.l2b.*.label1"},
+			labelKeys:   []config.Label{{Alias: "label1", Path: "l1.l2b.*.label1"}},
 			expectErr:   true,
 		},
 		{
 			description: "Valid case: The labelKey can correspond to valueKey with *.",
 			valueKey:    "l1.l2a.*.label1",
-			labelKeys:   []string{"l1.l2b.label1"},
+			labelKeys:   []config.Label{{Alias: "label1", Path: "l1.l2b.label1"}},
 			expectErr:   false,
 		},
 		{
 			description: "Valid case: LabelKey and valueKey match perfectly",
 			valueKey:    "l1.l2a.label1",
-			labelKeys:   []string{"l1.l2a.label1"},
+			labelKeys:   []config.Label{{Alias: "label1", Path: "l1.l2a.label1"}},
 			expectErr:   false,
 		},
 		{
 			description: "Valid case: * in labelKey corresponds to any segment in valueKey",
 			valueKey:    "l1.*.label1",
-			labelKeys:   []string{"l1.l2a.label1"},
+			labelKeys:   []config.Label{{Alias: "label1", Path: "l1.l2a.label1"}},
 			expectErr:   false,
 		},
 		{
 			description: "Case with an error : * in labelKey at wrong position",
 			valueKey:    "l1.l2b.*.l3a.label2",
-			labelKeys:   []string{"l1.l2b.l3a.*.label2"},
+			labelKeys:   []config.Label{{Alias: "label2", Path: "l1.l2b.l3a.*.label2"}},
 			expectErr:   true,
 		},
 		{
 			description: "Valid case: labelKey has more segments than valueKey",
 			valueKey:    "l1.l2a.*.label1",
-			labelKeys:   []string{"l1.l2a.*.label1.moreLabel"},
+			labelKeys:   []config.Label{{Alias: "moreLabel", Path: "l1.l2a.*.label1.moreLabel"}},
 			expectErr:   false,
 		},
 		{
 			description: "Valid case: valueKey and labelKey with * to match",
 			valueKey:    "l1.l2b.*.l3a.label2",
-			labelKeys:   []string{"l1.l2b.*.l3a.label2"},
+			labelKeys:   []config.Label{{Alias: "label2", Path: "l1.l2b.*.l3a.label2"}},
 			expectErr:   false,
 		},
 		{
 			description: "Case with an error: * too much in a labelKey",
 			valueKey:    "l1.l2b.*.l3a.label2",
-			labelKeys:   []string{"l1.l2b.*.l3a.*.label2"},
+			labelKeys:   []config.Label{{Alias: "label2", Path: "l1.l2b.*.l3a.*.label2"}},
 			expectErr:   true,
 		},
 	}
@@ -159,15 +160,15 @@ func TestExtractor(t *testing.T) {
 	tests := []struct {
 		description string
 		metricKey   string
-		labelKeys   []string
+		labelKeys   []config.Label
 		expected    []ExpectedMetric
 	}{
 		{
 			description: "Case 1: value with 1 array level only",
 			metricKey:   "l1.l2b.*.l3a.label2",
-			labelKeys: []string{
-				"l1.l2a.label1",
-				"l1.l2b.*.l3a.label3",
+			labelKeys: []config.Label{
+				{Alias: "", Path: "l1.l2a.label1"},
+				{Alias: "", Path: "l1.l2b.*.l3a.label3"},
 			},
 			expected: []ExpectedMetric{
 				{Metric: "lab2val1", Labels: []string{"lab1val1", "lab3val1"}},
@@ -177,10 +178,10 @@ func TestExtractor(t *testing.T) {
 		{
 			description: "Case 2: value at 2 array levels and value at array output",
 			metricKey:   "l1.l2b.*.l3a.l4a.*.label5",
-			labelKeys: []string{
-				"l1.l2a.label1",
-				"l1.l2b.*.l3a.label2",
-				"l1.l2b.*.l3a.l4a.*.label4",
+			labelKeys: []config.Label{
+				{Alias: "label1", Path: "l1.l2a.label1"},
+				{Alias: "label2", Path: "l1.l2b.*.l3a.label2"},
+				{Alias: "label4", Path: "l1.l2b.*.l3a.l4a.*.label4"},
 			},
 			expected: []ExpectedMetric{
 				{Metric: "1", Labels: []string{"lab1val1", "lab2val1", "lab4val1"}},
@@ -190,10 +191,10 @@ func TestExtractor(t *testing.T) {
 		{
 			description: "Case 2bis: value with 3 array levels",
 			metricKey:   "l1.l2b.*.l3a.l4a.*.label5",
-			labelKeys: []string{
-				"l1.l2a.label1",
-				"l1.l2b.*.l3a.label2",
-				"l1.l2b.*.l3a.l4a.*.label4",
+			labelKeys: []config.Label{
+				{Alias: "label1", Path: "l1.l2a.label1"},
+				{Alias: "label2", Path: "l1.l2b.*.l3a.label2"},
+				{Alias: "label4", Path: "l1.l2b.*.l3a.l4a.*.label4"},
 			},
 			expected: []ExpectedMetric{
 				{Metric: "1", Labels: []string{"lab1val1", "lab2val1", "lab4val1"}},
@@ -203,10 +204,10 @@ func TestExtractor(t *testing.T) {
 		{
 			description: "Case 3: test with a non-existent label",
 			metricKey:   "l1.l2b.*.l3a.label2",
-			labelKeys: []string{
-				"l1.l2a.labelx",
-				"l1.l2b.*.l3a.label3",
-				"l1.l2b.*.l3a.labelx",
+			labelKeys: []config.Label{
+				{Alias: "l2a_labelx", Path: "l1.l2a.labelx"},
+				{Alias: "label3", Path: "l1.l2b.*.l3a.label3"},
+				{Alias: "l3a_labelx", Path: "l1.l2b.*.l3a.labelx"},
 			},
 			expected: []ExpectedMetric{
 				{Metric: "lab2val1", Labels: []string{"", "lab3val1", ""}},
@@ -216,7 +217,7 @@ func TestExtractor(t *testing.T) {
 		{
 			description: "Case 4: test without labels",
 			metricKey:   "l1.l2b.*.l3a.label2",
-			labelKeys:   []string{},
+			labelKeys:   []config.Label{},
 			expected: []ExpectedMetric{
 				{Metric: "lab2val1", Labels: []string{}},
 				{Metric: "lab2val2", Labels: []string{}},
@@ -225,9 +226,9 @@ func TestExtractor(t *testing.T) {
 		{
 			description: "Cas 5: label ordering impact",
 			metricKey:   "l1.l2b.*.l3a.label2",
-			labelKeys: []string{
-				"l1.l2b.*.l3a.label3",
-				"l1.l2a.label1",
+			labelKeys: []config.Label{
+				{Alias: "l2a_labelx", Path: "l1.l2b.*.l3a.label3"},
+				{Alias: "l2a_labelx", Path: "l1.l2a.label1"},
 			},
 			expected: []ExpectedMetric{
 				{Metric: "lab2val1", Labels: []string{"lab1val1", "lab3val1"}},

@@ -5,21 +5,23 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/vinted/graphql-exporter/internal/config"
 )
 
 type Extractor struct {
 	separator     string
 	labelKeyParts [][]string
-	labelKeys     []string
+	labels        []config.Label
 	valueKeyParts []string
 	valueKey      string
 }
 
-func NewExtractor(separator, valueKey string, labelKeys []string) (Extractor, error) {
+func NewExtractor(separator, valueKey string, labelKeys []config.Label) (Extractor, error) {
 	sortedLabelKeys := sortPaths(separator, labelKeys)
 	labelKeyParts := make([][]string, len(labelKeys))
 	for i, keyPath := range sortedLabelKeys {
-		labelKeyParts[i] = strings.Split(keyPath, ".")
+		labelKeyParts[i] = strings.Split(keyPath.Path, ".")
 	}
 	valueKeyParts := strings.Split(valueKey, ".")
 	e := Extractor{
@@ -27,7 +29,7 @@ func NewExtractor(separator, valueKey string, labelKeys []string) (Extractor, er
 		valueKeyParts: valueKeyParts,
 		labelKeyParts: labelKeyParts,
 		valueKey:      valueKey,
-		labelKeys:     sortedLabelKeys,
+		labels:        sortedLabelKeys,
 	}
 
 	err := e.validateLabelKeysPath()
@@ -37,16 +39,16 @@ func NewExtractor(separator, valueKey string, labelKeys []string) (Extractor, er
 // Type for callback function.
 type CallbackFunc func(value string, labels []string)
 
-func (e *Extractor) GetSortedPaths() []string {
-	return e.labelKeys
+func (e *Extractor) GetSortedLabels() []config.Label {
+	return e.labels
 }
 
 // sortPaths sorts paths by length and alphabetically
-func sortPaths(separator string, paths []string) []string {
+func sortPaths(separator string, labels []config.Label) []config.Label {
 	// Use sort.Slice to customize sort order
-	sort.Slice(paths, func(i, j int) bool {
-		partsI := strings.Split(paths[i], separator)
-		partsJ := strings.Split(paths[j], separator)
+	sort.Slice(labels, func(i, j int) bool {
+		partsI := strings.Split(labels[i].Path, separator)
+		partsJ := strings.Split(labels[j].Path, separator)
 
 		// Sort by length (number of segments)
 		if len(partsI) != len(partsJ) {
@@ -64,7 +66,7 @@ func sortPaths(separator string, paths []string) []string {
 		return false
 	})
 
-	return paths
+	return labels
 }
 
 // JSON decoding function that transforms a []byte into an interface{}.
@@ -83,7 +85,7 @@ func (e *Extractor) validateLabelKeysPath() error {
 
 		// Rule 1: The first keyPart of each label must be the same as that of valueKey
 		if e.valueKeyParts[0] != labelKeyParts[0] {
-			return fmt.Errorf("the first segment of the labelKey '%s' does not match that of the valueKey '%s'", e.labelKeys[idx], e.valueKey)
+			return fmt.Errorf("the first segment of the labelKey '%s' does not match that of the valueKey '%s'", e.labels[idx].Alias, e.valueKey)
 		}
 
 		// Rule 2: A labelKey must have the same number or fewer * as the valueKey.
@@ -92,7 +94,7 @@ func (e *Extractor) validateLabelKeysPath() error {
 		valueStarCount := countStars(e.valueKeyParts)
 
 		if labelStarCount > valueStarCount {
-			return fmt.Errorf("labelKey '%s' has more '*' than valueKey '%s'", e.labelKeys[idx], e.valueKey)
+			return fmt.Errorf("labelKey '%s' has more '*' than valueKey '%s'", e.labels[idx].Alias, e.valueKey)
 		}
 
 		// Rule 3: A `*` in a labelKey must have the same position in the valueKey p
@@ -101,11 +103,11 @@ func (e *Extractor) validateLabelKeysPath() error {
 			if labelKeyParts[i] == "*" {
 				// Check that this position is valid in the valueKey (do not exceed the length of the valueKey)
 				if i >= len(e.valueKeyParts) {
-					return fmt.Errorf("a '*' in labelKey '%s' exceeds the length of valueKey '%s", e.labelKeys[idx], e.valueKey)
+					return fmt.Errorf("a '*' in labelKey '%s' exceeds the length of valueKey '%s", e.labels[idx], e.valueKey)
 				}
 				// Check that the '*' is in the same position as in the valueKey
 				if e.valueKeyParts[i] != "*" && len(e.valueKeyParts) > i && e.valueKeyParts[i] != labelKeyParts[i] {
-					return fmt.Errorf("the '*' in the labelKey '%s' is incorrectly positioned in relation to the valueKey '%s'", e.labelKeys[idx], e.valueKey)
+					return fmt.Errorf("the '*' in the labelKey '%s' is incorrectly positioned in relation to the valueKey '%s'", e.labels[idx].Path, e.valueKey)
 				}
 			} else {
 				// If it's not an *, it must correspond exactly to the valueKey segment.
@@ -114,7 +116,7 @@ func (e *Extractor) validateLabelKeysPath() error {
 					if i > 0 && (len(e.valueKeyParts) <= i || labelKeyParts[i] != e.valueKeyParts[i]) {
 						continue
 					}
-					return fmt.Errorf("the '%s' segment of labelKey '%s' does not match that of valueKey '%s' at index %d", labelKeyParts[i], e.labelKeys[idx], e.valueKey, i)
+					return fmt.Errorf("the '%s' segment of labelKey '%s' does not match that of valueKey '%s' at index %d", labelKeyParts[i], e.labels[idx].Alias, e.valueKey, i)
 				}
 			}
 		}
@@ -123,7 +125,7 @@ func (e *Extractor) validateLabelKeysPath() error {
 		if len(labelKeyParts) > len(e.valueKeyParts) {
 			// If the labelKey has more segments than the valueKey, it is valid as long as it does not contain a misplaced *.
 			if labelStarCount < valueStarCount {
-				return fmt.Errorf("labelKey '%s' has more segments than valueKey '%s' with an incorrectly positioned '*'", e.labelKeys[idx], e.valueKey)
+				return fmt.Errorf("labelKey '%s' has more segments than valueKey '%s' with an incorrectly positioned '*'", e.labels[idx].Alias, e.valueKey)
 			}
 		}
 	}

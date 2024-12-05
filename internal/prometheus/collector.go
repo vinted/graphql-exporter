@@ -33,10 +33,6 @@ type Metric struct {
 	Config    config.Metric
 	Extractor Extractor
 }
-type Label struct {
-	Name  string
-	Value string
-}
 
 type GraphqlCollector struct {
 	cachedQuerySet   []*QuerySet
@@ -56,7 +52,7 @@ func newGraphqlCollector() *GraphqlCollector {
 		for _, m := range q.Metrics {
 			var collector prometheus.Collector
 			var name string
-			var labels []string
+			var labelNames []string
 
 			extractor, err := NewExtractor(config.Config.LabelPathSeparator, m.Value, m.Labels)
 			if err != nil {
@@ -69,11 +65,11 @@ func newGraphqlCollector() *GraphqlCollector {
 				name = m.Name
 			}
 
-			for _, label := range extractor.GetSortedPaths() {
-				label = strings.Replace(label, ".*.", "_", -1)
-				label = strings.Replace(label, ".", "_", -1)
-				labels = append(labels, label)
+			sortedLabels := extractor.GetSortedLabels()
+			for _, label := range sortedLabels {
+				labelNames = append(labelNames, label.Alias)
 			}
+
 			switch {
 			case m.MetricType == "histogram":
 				collector = prometheus.NewHistogramVec(
@@ -84,7 +80,7 @@ func newGraphqlCollector() *GraphqlCollector {
 						Help:      m.Description,
 						Buckets:   latencyHistogramBuckets,
 					},
-					labels)
+					labelNames)
 			case m.MetricType == "counter":
 				collector = prometheus.NewCounterVec(
 					prometheus.CounterOpts{
@@ -93,7 +89,7 @@ func newGraphqlCollector() *GraphqlCollector {
 						Name:      name,
 						Help:      m.Description,
 					},
-					labels)
+					labelNames)
 			default:
 				collector = prometheus.NewGaugeVec(
 					prometheus.GaugeOpts{
@@ -102,7 +98,7 @@ func newGraphqlCollector() *GraphqlCollector {
 						Name:      name,
 						Help:      m.Description,
 					},
-					labels,
+					labelNames,
 				)
 			}
 			metrics = append(metrics, &Metric{

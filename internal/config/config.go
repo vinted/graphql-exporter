@@ -27,13 +27,18 @@ type Query struct {
 	Metrics   []Metric
 }
 
+type Label struct {
+	Path  string `yaml:"path"`
+	Alias string `yaml:"alias"`
+}
+
 type Metric struct {
-	Description string   `yaml:"description"`
-	MetricType  string   `yaml:"metricType"`
-	Placeholder string   `yaml:"placeholder"`
-	Labels      []string `yaml:"labels"`
-	Value       string   `yaml:"value"`
-	Name        string   `yaml:"name"`
+	Description string  `yaml:"description"`
+	MetricType  string  `yaml:"metricType"`
+	Placeholder string  `yaml:"placeholder"`
+	Labels      []Label `yaml:"labels"`
+	Value       string  `yaml:"value"`
+	Name        string  `yaml:"name"`
 }
 
 var (
