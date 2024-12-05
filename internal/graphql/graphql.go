@@ -23,7 +23,7 @@ var funcMap = template.FuncMap{
 	},
 }
 
-func GraphqlQuery(ctx context.Context, query string, previousTimestapm time.Time) ([]byte, error) {
+func GraphqlQuery(ctx context.Context, query string, previousTimestamp, nextTimestamp time.Time) ([]byte, error) {
 	params := url.Values{}
 	tpl, err := template.New("query").Funcs(funcMap).Parse(query)
 	if err != nil {
@@ -31,9 +31,10 @@ func GraphqlQuery(ctx context.Context, query string, previousTimestapm time.Time
 	}
 
 	var templateBuffer bytes.Buffer
-	err = tpl.Execute(&templateBuffer, struct{ PreviousRun, Now string }{
-		PreviousRun: previousTimestapm.Format(time.RFC3339),
-		Now:         time.Now().Format(time.RFC3339),
+	err = tpl.Execute(&templateBuffer, struct{ PreviousRun, NextRun, Now string }{
+		PreviousRun: previousTimestamp.Format(time.RFC3339),
+		NextRun:     nextTimestamp.Format(time.RFC3339),
+		Now:         time.Now().UTC().Format(time.RFC3339),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("template error %s", err)
