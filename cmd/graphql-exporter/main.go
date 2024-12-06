@@ -41,7 +41,7 @@ func main() {
 }
 
 func getLogLevelFromEnv() slog.Level {
-	levelStr := os.Getenv("LOG_LEVEL")
+	levelStr := getenv("LOG_LEVEL", "info")
 	switch strings.ToLower(levelStr) {
 	case "debug":
 		return slog.LevelDebug
@@ -55,4 +55,12 @@ func getLogLevelFromEnv() slog.Level {
 		return slog.Level(100) // Custom level higher than any standard level, so silent by default
 
 	}
+}
+
+func getenv(key, fallback string) string {
+	value := os.Getenv(key)
+	if len(value) == 0 {
+		return fallback
+	}
+	return value
 }
