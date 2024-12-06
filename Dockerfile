@@ -10,13 +10,16 @@ COPY . .
 # Fetch dependencies.
 # Using go get.
 RUN go get ./...
+ARG TARGETOS
+ARG TARGETARCH
 # Build the binary.
-RUN go build -o /go/bin/graphql-exporter ./cmd/graphql-exporter
+RUN CGO_ENABLED=0   go build -a -o /go/bin/graphql-exporter ./cmd/graphql-exporter
 ############################
 # STEP 2 build a small image
 ############################
 FROM scratch
 # Copy our static executable.
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /go/bin/graphql-exporter /go/bin/graphql-exporter
 COPY config_example.yaml /config.yaml
 EXPOSE 9353
