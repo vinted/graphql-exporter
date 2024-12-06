@@ -129,11 +129,13 @@ func (collector *GraphqlCollector) getMetrics() error {
 
 	for _, q := range collector.cachedQuerySet {
 		// nextRun := q.PreviousRun.Add(5 * time.Minute)
-		nextRun := time.Now().Add(time.Second * time.Duration(config.Config.CacheExpire))
+		now := time.Now()
+		nextRun := now.Add(time.Second * time.Duration(config.Config.CacheExpire))
 		slog.Debug(fmt.Sprintf("previous run %s", q.PreviousRun.Format(time.RFC3339)))
+		slog.Debug(fmt.Sprintf("next run %s", nextRun.Format(time.RFC3339)))
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(config.Config.QueryTimeout))
 		queryCtx := context.WithValue(ctx, "query", q.Query)
-		result, err := graphql.GraphqlQuery(ctx, q.Query, q.PreviousRun, nextRun)
+		result, err := graphql.GraphqlQuery(ctx, q.Query, q.PreviousRun, now, nextRun)
 		cancel()
 		if err != nil {
 			if config.Config.FailFast {
@@ -154,7 +156,7 @@ func (collector *GraphqlCollector) getMetrics() error {
 			}
 		}
 		data := gql.Data
-		q.PreviousRun = nextRun
+		q.PreviousRun = now
 		if data == nil {
 			continue
 		}
