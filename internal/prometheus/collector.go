@@ -18,7 +18,8 @@ import (
 var latencyHistogramBuckets = []float64{.1, .25, .5, 1, 2.5, 5, 10, 15, 20, 30, 40, 50, 60, 90, 150, 210, 270, 330, 390, 450, 500, 600, 1200, 1800, 2700, 3600}
 
 type Graphql struct {
-	Data map[string]interface{}
+	Errors []interface{}          `json:"errors"`
+	Data   map[string]interface{} `json:"data"`
 }
 
 type QuerySet struct {
@@ -137,6 +138,7 @@ func (collector *GraphqlCollector) getMetrics() error {
 		queryCtx := context.WithValue(ctx, "query", q.Query)
 		result, err := graphql.GraphqlQuery(ctx, q.Query, q.PreviousRun, now, nextRun)
 		cancel()
+		slog.Debug(fmt.Sprintf("result found %+v", string(result)))
 		if err != nil {
 			if config.Config.FailFast {
 				return err
@@ -154,6 +156,9 @@ func (collector *GraphqlCollector) getMetrics() error {
 				slog.Error(fmt.Sprintf("unmarshal error: %s", err))
 				continue
 			}
+		}
+		if len(gql.Errors) > 0 {
+			slog.Error(fmt.Sprintf("graphql error %+v", gql.Errors))
 		}
 		data := gql.Data
 		q.PreviousRun = now
