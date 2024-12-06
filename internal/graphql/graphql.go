@@ -19,7 +19,7 @@ import (
 var funcMap = template.FuncMap{
 	"NOW": func(t string) (string, error) {
 		d, err := time.ParseDuration(t)
-		return time.Now().UTC().Add(d).Format(time.RFC3339), err
+		return time.Now().Add(d).Format(time.RFC3339), err
 	},
 }
 
@@ -34,7 +34,7 @@ func GraphqlQuery(ctx context.Context, query string, previousTimestamp, nextTime
 	err = tpl.Execute(&templateBuffer, struct{ PreviousRun, NextRun, Now string }{
 		PreviousRun: previousTimestamp.Format(time.RFC3339),
 		NextRun:     nextTimestamp.Format(time.RFC3339),
-		Now:         time.Now().UTC().Format(time.RFC3339),
+		Now:         time.Now().Format(time.RFC3339),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("template error %s", err)

@@ -111,7 +111,7 @@ func newGraphqlCollector() *GraphqlCollector {
 			Query:   q.Query,
 			Metrics: metrics,
 			// PreviousRun: time.Now().Truncate(time.Hour * 24 * 180),
-			PreviousRun: time.Now().UTC(),
+			PreviousRun: time.Now(),
 		}
 		cachedQuerySet = append(cachedQuerySet, querySet)
 	}
@@ -129,7 +129,7 @@ func (collector *GraphqlCollector) getMetrics() error {
 
 	for _, q := range collector.cachedQuerySet {
 		// nextRun := q.PreviousRun.Add(5 * time.Minute)
-		nextRun := time.Now().UTC().Add(time.Second * time.Duration(config.Config.CacheExpire))
+		nextRun := time.Now().Add(time.Second * time.Duration(config.Config.CacheExpire))
 		slog.Debug(fmt.Sprintf("previous run %s", q.PreviousRun.Format(time.RFC3339)))
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(config.Config.QueryTimeout))
 		queryCtx := context.WithValue(ctx, "query", q.Query)
@@ -158,6 +158,7 @@ func (collector *GraphqlCollector) getMetrics() error {
 		if data == nil {
 			continue
 		}
+		slog.Debug(fmt.Sprintf("data found %+v", data))
 		for _, m := range q.Metrics {
 			metricCtx := context.WithValue(queryCtx, "metric", m.Config.Name)
 			callbackFunc := func(value string, labels []string) {
@@ -194,18 +195,18 @@ func (collector *GraphqlCollector) getMetrics() error {
 }
 
 func (collector *GraphqlCollector) updateMetrics() error {
-	if time.Now().UTC().Unix()-collector.cachedAt > config.Config.CacheExpire {
+	if time.Now().Unix()-collector.cachedAt > config.Config.CacheExpire {
 		collector.accessMu.Lock()
 		defer collector.accessMu.Unlock()
 		err := collector.getMetrics()
 		if err != nil {
 			slog.Error(fmt.Sprintf("error collecting metrics: %s", err))
 			if config.Config.ExtendCacheOnError {
-				collector.cachedAt = time.Now().UTC().Unix()
+				collector.cachedAt = time.Now().Unix()
 			}
 			return err
 		} else {
-			collector.cachedAt = time.Now().UTC().Unix()
+			collector.cachedAt = time.Now().Unix()
 		}
 	}
 	return nil
