@@ -15,8 +15,6 @@ import (
 	"github.com/vinted/graphql-exporter/internal/graphql"
 )
 
-var latencyHistogramBuckets = []float64{.1, .25, .5, 1, 2.5, 5, 10, 15, 20, 30, 40, 50, 60, 90, 150, 210, 270, 330, 390, 450, 500, 600, 1200, 1800, 2700, 3600}
-
 type Graphql struct {
 	Errors []interface{}          `json:"errors"`
 	Data   map[string]interface{} `json:"data"`
@@ -73,13 +71,16 @@ func newGraphqlCollector() *GraphqlCollector {
 
 			switch {
 			case m.MetricType == "histogram":
+				if len(m.HistogramBuckets) == 0 {
+					m.HistogramBuckets = prometheus.DefBuckets
+				}
 				collector = prometheus.NewHistogramVec(
 					prometheus.HistogramOpts{
 						Namespace: config.Config.MetricsPrefix,
 						Subsystem: q.Subsystem,
 						Name:      name,
 						Help:      m.Description,
-						Buckets:   latencyHistogramBuckets,
+						Buckets:   m.HistogramBuckets,
 					},
 					labelNames)
 			case m.MetricType == "counter":
@@ -109,10 +110,10 @@ func newGraphqlCollector() *GraphqlCollector {
 			})
 		}
 		querySet := &QuerySet{
-			Query:   q.Query,
-			Metrics: metrics,
-			// PreviousRun: time.Now().Truncate(time.Hour * 24 * 180),
-			PreviousRun: time.Now(),
+			Query:       q.Query,
+			Metrics:     metrics,
+			PreviousRun: time.Now().Truncate(time.Hour * 24 * 180),
+			// PreviousRun: time.Now(),
 		}
 		cachedQuerySet = append(cachedQuerySet, querySet)
 	}
@@ -129,9 +130,9 @@ func (collector *GraphqlCollector) getMetrics() error {
 	var gql *Graphql
 
 	for _, q := range collector.cachedQuerySet {
-		// nextRun := q.PreviousRun.Add(5 * time.Minute)
+		nextRun := q.PreviousRun.Add(5 * time.Minute)
 		now := time.Now()
-		nextRun := now.Add(time.Second * time.Duration(config.Config.CacheExpire))
+		// nextRun := now.Add(time.Second * time.Duration(config.Config.CacheExpire))
 		slog.Debug(fmt.Sprintf("previous run %s", q.PreviousRun.Format(time.RFC3339)))
 		slog.Debug(fmt.Sprintf("next run %s", nextRun.Format(time.RFC3339)))
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(config.Config.QueryTimeout))
@@ -161,7 +162,8 @@ func (collector *GraphqlCollector) getMetrics() error {
 			slog.Error(fmt.Sprintf("graphql error %+v", gql.Errors))
 		}
 		data := gql.Data
-		q.PreviousRun = now
+		// q.PreviousRun = now
+		q.PreviousRun = nextRun
 		if data == nil {
 			continue
 		}

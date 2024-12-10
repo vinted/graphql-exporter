@@ -33,12 +33,13 @@ type Label struct {
 }
 
 type Metric struct {
-	Description string  `yaml:"description"`
-	MetricType  string  `yaml:"metricType"`
-	Placeholder string  `yaml:"placeholder"`
-	Labels      []Label `yaml:"labels"`
-	Value       string  `yaml:"value"`
-	Name        string  `yaml:"name"`
+	Description      string    `yaml:"description"`
+	MetricType       string    `yaml:"metricType"`
+	HistogramBuckets []float64 `yaml:"histogramBuckets"`
+	Placeholder      string    `yaml:"placeholder"`
+	Labels           []Label   `yaml:"labels"`
+	Value            string    `yaml:"value"`
+	Name             string    `yaml:"name"`
 }
 
 var (
