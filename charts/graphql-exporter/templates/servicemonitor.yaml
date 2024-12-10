@@ -1,0 +1,21 @@
+{{- if .Values.metrics.serviceMonitor.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "graphql-exporter.fullname" . }}
+  labels:
+    {{- include "graphql-exporter.labels" . | nindent 4 }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- include "graphql-exporter.labels" . | nindent 4 }}
+  endpoints:
+    - port: http
+      path: /metrics
+    {{- with .Values.metrics.serviceMonitor.endpointConfig }}
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{- end }}
