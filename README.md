@@ -51,3 +51,14 @@ graphql_exporter_custom_fields_price{name="server",order_contract_id="contract-n
 
 API token can be overridden with `GRAPHQLAPITOKEN` env variable.
 `CacheExpire` configuration parameter defines cache validity period. Value of `0` disables caching.
+
+## Dev env
+### from Dockerfile
+Build the image
+```
+docker buildx build --platform linux/amd64,linux/arm64 --push -t registry.ubble.ai/ubbleai/sandbox/graphql-exporter:dev -f Dockerfile ./
+```
+Run the container
+```
+docker run -it -v ./gitlab.yaml:/gitlab-yaml --rm -p 9353:9353 registry.ubble.ai/ubbleai/sandbox/graphql-exporter:dev
+```
